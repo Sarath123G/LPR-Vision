@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LPR-Vision: Interactive License Plate Recognition Lab</title>
+    <!-- Google Fonts: Inter & Outfit -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="index.css">
+    <script src="index.js" defer></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- TOP NAVIGATION HEADER -->
+        <header class="app-header">
+            <div class="header-logo">
+                <i class="fa-solid fa-car-rear icon-logo"></i>
+                <h1>LPR-Vision <span class="logo-badge">Lab Edition</span></h1>
+            </div>
+            <div class="system-status">
+                <div class="status-indicator" id="status-backend">
+                    <span class="status-dot inactive"></span>
+                    <span>Backend: <strong id="status-backend-text">Checking...</strong></span>
+                </div>
+                <div class="status-indicator" id="status-ocr">
+                    <span class="status-dot inactive"></span>
+                    <span>OCR Engine: <strong id="status-ocr-text">Ready</strong></span>
+                </div>
+            </div>
+        </header>
+
+        <!-- MAIN LAYOUT -->
+        <div class="app-body">
+            <!-- SIDEBAR CONTROLS -->
+            <aside class="app-sidebar">
+                <!-- PARAMETER TUNER -->
+                <div class="sidebar-card">
+                    <div class="card-header">
+                        <i class="fa-solid fa-sliders"></i>
+                        <h2>CV Parameter Tuner</h2>
+                    </div>
+                    <div class="card-body">
+                        <div class="tuner-group">
+                            <label for="engine-select">Recognition Engine</label>
+                            <select id="engine-select">
+                                <option value="classic">Classic CV (GfG Contours)</option>
+                                <option value="ai">AI Deep Learning (EasyOCR)</option>
+                            </select>
+                        </div>
+
+                        <hr class="divider">
+
+                        <div class="slider-tuner">
+                            <div class="slider-header">
+                                <label for="blur-kernel">Gaussian Blur Kernel</label>
+                                <span class="slider-value" id="val-blur-kernel">7x7</span>
+                            </div>
+                            <input type="range" id="blur-kernel" min="3" max="15" step="2" value="7">
+                            <p class="slider-desc">Reduces high-frequency noise & speckles</p>
+                        </div>
+
+                        <div class="slider-tuner">
+                            <div class="slider-header">
+                                <label for="sobel-kernel">Sobel X Kernel Size</label>
+                                <span class="slider-value" id="val-sobel-kernel">3</span>
+                            </div>
+                            <input type="range" id="sobel-kernel" min="1" max="7" step="2" value="3">
+                            <p class="slider-desc">Highlights vertical edges of the plate</p>
+                        </div>
+
+                        <div class="slider-tuner">
+                            <div class="slider-header">
+                                <label>Morphology Close Kernel</label>
+                                <span class="slider-value" id="val-morph-kernel">22x3</span>
+                            </div>
+                            <div class="range-dual">
+                                <input type="range" id="morph-w" min="10" max="30" step="1" value="22" title="Width">
+                                <input type="range" id="morph-h" min="1" max="10" step="1" value="3" title="Height">
+                            </div>
+                            <p class="slider-desc">Binds vertical lines into a solid block</p>
+                        </div>
+
+                        <div class="slider-tuner">
+                            <div class="slider-header">
+                                <label>Plate Area Bounds (px)</label>
+                                <span class="slider-value" id="val-area-bounds">1k - 30k</span>
+                            </div>
+                            <div class="range-dual">
+                                <input type="range" id="area-min" min="100" max="10000" step="100" value="500" title="Min Area">
+                                <input type="range" id="area-max" min="10000" max="50000" step="1000" value="30000" title="Max Area">
+                            </div>
+                            <p class="slider-desc">Valid size filters for candidates</p>
+                        </div>
+
+                        <div class="slider-tuner">
+                            <div class="slider-header">
+                                <label>Aspect Ratio Bounds</label>
+                                <span class="slider-value" id="val-ratio-bounds">1.5 - 7.0</span>
+                            </div>
+                            <div class="range-dual">
+                                <input type="range" id="ratio-min" min="1.0" max="4.0" step="0.1" value="1.5" title="Min Ratio">
+                                <input type="range" id="ratio-max" min="4.0" max="10.0" step="0.1" value="7.0" title="Max Ratio">
+                            </div>
+                            <p class="slider-desc">Filters by rectangular proportions (W/H)</p>
+                        </div>
+
+                        <button id="btn-reset-params" class="btn btn-secondary btn-full">
+                            <i class="fa-solid fa-arrow-rotate-left"></i> Reset Parameters
+                        </button>
+                    </div>
+                </div>
+
+                <!-- WHITELIST MANAGER -->
+                <div class="sidebar-card">
+                    <div class="card-header">
+                        <i class="fa-solid fa-shield-halved"></i>
+                        <h2>Whitelist Manager</h2>
+                    </div>
+                    <div class="card-body">
+                        <form id="whitelist-form" class="whitelist-input-row">
+                            <input type="text" id="whitelist-input" placeholder="e.g. DL3CAG1234" autocomplete="off">
+                            <button type="submit" class="btn btn-primary" id="btn-whitelist-add">
+                                <i class="fa-solid fa-plus"></i>
+                            </button>
+                        </form>
+                        <div class="whitelist-container">
+                            <ul id="whitelist-list" class="whitelist-list">
+                                <!-- Whitelist items will load dynamically here -->
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- MAIN WORKSPACE -->
+            <main class="app-main">
+                <!-- MAIN WORKSPACE TABS -->
+                <nav class="main-tabs">
+                    <button class="tab-btn active" data-tab="tab-detector">
+                        <i class="fa-solid fa-camera"></i> Live Detector
+                    </button>
+                    <button class="tab-btn" data-tab="tab-pipeline" id="nav-btn-pipeline">
+                        <i class="fa-solid fa-diagram-project"></i> Visual CV Pipeline
+                    </button>
+                    <button class="tab-btn" data-tab="tab-audit">
+                        <i class="fa-solid fa-database"></i> Audit Logs
+                    </button>
+                </nav>
+
+                <!-- TAB CONTENT -->
+                <div class="tab-content-container">
+                    
+                    <!-- TAB 1: LIVE DETECTOR -->
+                    <section id="tab-detector" class="tab-panel active">
+                        <div class="detector-layout">
+                            <!-- Left: Video/Image viewport -->
+                            <div class="viewport-section">
+                                <div class="mode-selectors" style="width: 100%; display: flex; align-items: center;">
+                                    <button class="mode-btn active" id="mode-btn-upload" data-mode="upload">
+                                        <i class="fa-solid fa-file-arrow-up"></i> Upload Media
+                                    </button>
+                                    <button class="mode-btn" id="mode-btn-webcam" data-mode="webcam">
+                                        <i class="fa-solid fa-video"></i> Live Webcam
+                                    </button>
+                                    <button class="mode-btn" id="mode-btn-sample" style="margin-left: auto; background-color: var(--primary-light); color: var(--primary);">
+                                        <i class="fa-solid fa-wand-magic-sparkles"></i> Try Sample Video
+                                    </button>
+                                </div>
+
+                                <!-- MEDIA DISPLAY AREA -->
+                                <div class="media-container" id="media-viewport">
+                                    <!-- Upload default view -->
+                                    <div class="upload-zone" id="upload-zone">
+                                        <i class="fa-solid fa-cloud-arrow-up cloud-icon"></i>
+                                        <h3>Drag and drop your file here</h3>
+                                        <p>Supports Image (PNG, JPG, WEBP) or Video (MP4, MOV)</p>
+                                        <div class="upload-btn-wrapper">
+                                            <button class="btn btn-primary">Browse File</button>
+                                            <input type="file" id="media-input" accept="image/*,video/*">
+                                        </div>
+                                    </div>
+
+                                    <!-- Loading spinner overlay -->
+                                    <div class="loading-overlay" id="loading-overlay">
+                                        <div class="spinner"></div>
+                                        <p id="loading-text">Processing Media...</p>
+                                    </div>
+
+                                    <!-- Image Preview -->
+                                    <div class="image-preview-container hidden" id="image-container">
+                                        <img id="image-preview" src="" alt="Source image for LPR">
+                                        <canvas id="image-canvas" class="overlay-canvas"></canvas>
+                                    </div>
+
+                                    <!-- Video Preview -->
+                                    <div class="video-preview-container hidden" id="video-container">
+                                        <video id="video-preview" controls></video>
+                                    </div>
+
+                                    <!-- Webcam Stream -->
+                                    <div class="webcam-container hidden" id="webcam-container">
+                                        <video id="webcam-feed" autoplay playsinline muted></video>
+                                        <canvas id="webcam-canvas" class="overlay-canvas"></canvas>
+                                    </div>
+                                </div>
+
+                                <!-- Webcam Control buttons -->
+                                <div class="webcam-controls hidden" id="webcam-controls-panel">
+                                    <button class="btn btn-danger" id="btn-stop-webcam">
+                                        <i class="fa-solid fa-power-off"></i> Stop Webcam
+                                    </button>
+                                    <span class="webcam-fps-badge"><i class="fa-solid fa-bolt"></i> Running: 5 FPS</span>
+                                </div>
+                            </div>
+
+                            <!-- Right: HUD Info panel -->
+                            <div class="hud-section">
+                                <div class="hud-card primary-hud">
+                                    <div class="hud-header">
+                                        <i class="fa-solid fa-microchip"></i>
+                                        <h3>Real-time HUD</h3>
+                                    </div>
+                                    <div class="hud-body">
+                                        <!-- Latest detection plate representation -->
+                                        <div class="hud-plate-display">
+                                            <div class="simulated-plate-outer">
+                                                <div class="simulated-plate-inner">
+                                                    <span class="plate-ind-strip">IND</span>
+                                                    <span class="plate-text-render" id="hud-plate-text">------</span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="hud-stats">
+                                            <div class="hud-stat-row">
+                                                <span class="stat-label">System Verdict:</span>
+                                                <span class="stat-val status-badge unauthorized" id="hud-verdict">NO PLATE</span>
+                                            </div>
+                                            <div class="hud-stat-row">
+                                                <span class="stat-label">Confidence:</span>
+                                                <span class="stat-val font-mono" id="hud-confidence">0.0%</span>
+                                            </div>
+                                            <div class="hud-stat-row">
+                                                <span class="stat-label">Target Box:</span>
+                                                <span class="stat-val font-mono" id="hud-coords">N/A</span>
+                                            </div>
+                                        </div>
+
+                                        <div class="hud-cropped-view">
+                                            <p class="crop-title">Segmented Crop:</p>
+                                            <div class="crop-frame">
+                                                <img id="hud-plate-crop" src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='30' viewBox='0 0 100 30'><rect width='100' height='30' fill='%23e2e8f0'/><text x='50%' y='60%' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='10' fill='%2394a3b8'>No plate</text></svg>" alt="Detected license plate cropped image">
+                                            </div>
+                                        </div>
+
+                                        <hr class="divider">
+
+                                        <!-- Sound alerts -->
+                                        <div class="audio-controls">
+                                            <div class="audio-switch">
+                                                <label class="switch">
+                                                    <input type="checkbox" id="chk-tts" checked>
+                                                    <span class="slider round"></span>
+                                                </label>
+                                                <span>Read Plate Text (TTS)</span>
+                                            </div>
+                                            <div class="audio-switch">
+                                                <label class="switch">
+                                                    <input type="checkbox" id="chk-alarm" checked>
+                                                    <span class="slider round"></span>
+                                                </label>
+                                                <span>Intruder Alarm Sound</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- TAB 2: VISUAL CV PIPELINE -->
+                    <section id="tab-pipeline" class="tab-panel">
+                        <div class="pipeline-intro">
+                            <h2>Classic Computer Vision Pipeline Viewer</h2>
+                            <p>Observe how the traditional contours algorithm extracts a license plate. Adjust sliders in the sidebar to see how parameters change these steps in real time.</p>
+                        </div>
+                        
+                        <div class="pipeline-grid">
+                            <!-- Step 1 -->
+                            <div class="pipeline-card" data-step="1">
+                                <div class="step-num">Step 1</div>
+                                <h4>Original Frame</h4>
+                                <div class="step-img-container">
+                                    <img id="step-1-img" src="" alt="Step 1: Original Image preview">
+                                </div>
+                                <p class="step-desc">Input frame received by system.</p>
+                            </div>
+
+                            <!-- Step 2 -->
+                            <div class="pipeline-card" data-step="2">
+                                <div class="step-num">Step 2</div>
+                                <h4>Grayscale & Blur</h4>
+                                <div class="step-img-container">
+                                    <img id="step-2-img" src="" alt="Step 2: Grayscale and blur preview">
+                                </div>
+                                <p class="step-desc">Reduces noise to ease edge checks.</p>
+                            </div>
+
+                            <!-- Step 3 -->
+                            <div class="pipeline-card" data-step="3">
+                                <div class="step-num">Step 3</div>
+                                <h4>Vertical Edges (Sobel)</h4>
+                                <div class="step-img-container">
+                                    <img id="step-3-img" src="" alt="Step 3: Sobel vertical edges preview">
+                                </div>
+                                <p class="step-desc">Highlights vertical changes in brightness.</p>
+                            </div>
+
+                            <!-- Step 4 -->
+                            <div class="pipeline-card" data-step="4">
+                                <div class="step-num">Step 4</div>
+                                <h4>Otsu Binarization</h4>
+                                <div class="step-img-container">
+                                    <img id="step-4-img" src="" alt="Step 4: Otsu threshold preview">
+                                </div>
+                                <p class="step-desc">Converts image to absolute black/white.</p>
+                            </div>
+
+                            <!-- Step 5 -->
+                            <div class="pipeline-card" data-step="5">
+                                <div class="step-num">Step 5</div>
+                                <h4>Morphological Close</h4>
+                                <div class="step-img-container">
+                                    <img id="step-5-img" src="" alt="Step 5: Morphological closing preview">
+                                </div>
+                                <p class="step-desc">Closes spaces between lines to form solid block.</p>
+                            </div>
+
+                            <!-- Step 6 -->
+                            <div class="pipeline-card" data-step="6">
+                                <div class="step-num">Step 6</div>
+                                <h4>Plate Contours</h4>
+                                <div class="step-img-container">
+                                    <img id="step-6-img" src="" alt="Step 6: Plate contours candidates preview">
+                                </div>
+                                <p class="step-desc">Draws border around rect candidate shapes.</p>
+                            </div>
+
+                            <!-- Step 7 -->
+                            <div class="pipeline-card" data-step="7">
+                                <div class="step-num">Step 7</div>
+                                <h4>Extracted Plate</h4>
+                                <div class="step-img-container">
+                                    <img id="step-7-img" src="" alt="Step 7: Cleaned cropped license plate preview">
+                                </div>
+                                <p class="step-desc">Crops the highest scoring valid region.</p>
+                            </div>
+
+                            <!-- Step 8 -->
+                            <div class="pipeline-card" data-step="8">
+                                <div class="step-num">Step 8</div>
+                                <h4>Character Segments</h4>
+                                <div class="step-img-container">
+                                    <img id="step-8-img" src="" alt="Step 8: Character segmentation preview">
+                                </div>
+                                <p class="step-desc">Connected components isolate characters.</p>
+                            </div>
+                        </div>
+
+                        <!-- SEGMENTED CHARACTER PILLS -->
+                        <div class="characters-segment-viewer hidden" id="char-segments-panel">
+                            <h3>Segmented Characters List</h3>
+                            <div class="chars-list-flex" id="chars-list-row">
+                                <!-- Individual segmented character crops render here -->
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- TAB 3: AUDIT LOGS -->
+                    <section id="tab-audit" class="tab-panel">
+                        <div class="audit-header">
+                            <div class="audit-title-section">
+                                <h2>Audit Log Database</h2>
+                                <p>Detailed records of all detected vehicles, statuses, and validation timestamps.</p>
+                            </div>
+                            <div class="audit-actions">
+                                <button id="btn-export-csv" class="btn btn-secondary">
+                                    <i class="fa-solid fa-file-csv"></i> Export CSV
+                                </button>
+                                <button id="btn-clear-history" class="btn btn-danger">
+                                    <i class="fa-solid fa-trash-can"></i> Clear History
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Audit Filters -->
+                        <div class="audit-filters">
+                            <div class="filter-search">
+                                <i class="fa-solid fa-magnifying-glass"></i>
+                                <input type="text" id="filter-search-input" placeholder="Search plates...">
+                            </div>
+                            <div class="filter-status-buttons">
+                                <button class="filter-btn active" data-filter="all">All</button>
+                                <button class="filter-btn" data-filter="Authorized">Authorized</button>
+                                <button class="filter-btn" data-filter="Unauthorized">Unauthorized</button>
+                            </div>
+                        </div>
+
+                        <!-- Audit Table -->
+                        <div class="table-container">
+                            <table class="audit-table">
+                                <thead>
+                                    <tr>
+                                        <th>Timestamp</th>
+                                        <th>Cropped Plate</th>
+                                        <th>Plate Text</th>
+                                        <th>Confidence</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="audit-table-body">
+                                    <!-- Dynamic rows loaded here -->
+                                    <tr class="empty-state-row">
+                                        <td colspan="5" class="table-empty-state">
+                                            <i class="fa-solid fa-box-open"></i>
+                                            <p>No plates detected yet. Start by uploading an image or video.</p>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </section>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- MODAL FOR DETAILED STEP VIEW -->
+    <div class="modal hidden" id="step-modal">
+        <div class="modal-overlay" id="modal-overlay"></div>
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3 id="modal-step-title">Step Detail</h3>
+                <button class="modal-close" id="btn-close-modal"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="modal-grid">
+                    <div class="modal-image-panel">
+                        <img id="modal-step-img" src="" alt="Detailed view of CV pipeline step">
+                    </div>
+                    <div class="modal-info-panel">
+                        <h4>Algorithm Context</h4>
+                        <p id="modal-step-math-desc">Detailed mathematical description of the step operation.</p>
+                        
+                        <div class="code-concept-card">
+                            <h5>OpenCV Implementation</h5>
+                            <pre><code id="modal-step-code">cv2.method(...)</code></pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
